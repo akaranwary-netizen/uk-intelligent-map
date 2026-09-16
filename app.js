@@ -1,4 +1,15 @@
 const info=document.querySelector('#info'), title=document.querySelector('#voiceTitle');
+
+// TEMPORARY VISIBLE DIAGNOSTICS (useful on iPhone without Safari developer console)
+function showDiagnostic(label, value){
+  const msg = value && (value.stack || value.message) ? (value.stack || value.message) : String(value);
+  console.error(label, value);
+  if(info) info.innerHTML='<b>⚠️ '+label+'</b><span style="white-space:pre-wrap;word-break:break-word">'+
+    msg.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))+'</span>';
+}
+window.addEventListener('error', e=>showDiagnostic('JavaScript error', e.error || e.message));
+window.addEventListener('unhandledrejection', e=>showDiagnostic('Promise error', e.reason));
+
 const map=new maplibregl.Map({container:'navMap',style:'https://tiles.openfreemap.org/styles/dark',center:[-2.24,51.86],zoom:10.5,pitch:28,bearing:-12,attributionControl:true});
 map.addControl(new maplibregl.NavigationControl({showCompass:false}),'bottom-right');
 const points={cctv:[[-2.18,51.86],[-2.29,51.83]],speed:[[-2.22,51.82]],trains:[[-2.238,51.865]],buses:[[-2.245,51.87]],flights:[[-2.05,51.89]],parking:[[-2.25,51.85]]};
@@ -43,8 +54,7 @@ async function show3D(){
       });
       info.innerHTML='<b>3D Realistic Map</b><span>Photorealistic 3D Tiles connected through Cesium ion.</span>';
     }catch(err){
-      console.error('Photorealistic 3D Tiles error:',err);
-      info.innerHTML='<b>3D could not load</b><span>Check the Cesium ion token permissions and Photorealistic 3D Tiles access.</span>';
+      showDiagnostic('3D load error', err);
     }
   }else{
     viewer.resize();
