@@ -2,7 +2,21 @@ const info=document.querySelector('#info'), title=document.querySelector('#voice
 
 // TEMPORARY VISIBLE DIAGNOSTICS (useful on iPhone without Safari developer console)
 function showDiagnostic(label, value){
-  const msg = value && (value.stack || value.message) ? (value.stack || value.message) : String(value);
+  let msg;
+  try {
+    if (value && typeof value === 'object') {
+      msg = [
+        value.name ? 'Name: '+value.name : '',
+        value.message ? 'Message: '+value.message : '',
+        value.statusCode ? 'HTTP: '+value.statusCode : '',
+        value.response ? 'Response: '+JSON.stringify(value.response) : '',
+        value.stack ? 'Stack: '+value.stack : '',
+        'Raw: '+JSON.stringify(value, Object.getOwnPropertyNames(value))
+      ].filter(Boolean).join('\n');
+    } else {
+      msg = String(value);
+    }
+  } catch (_) { msg = String(value); }
   console.error(label, value);
   if(info) info.innerHTML='<b>⚠️ '+label+'</b><span style="white-space:pre-wrap;word-break:break-word">'+
     msg.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))+'</span>';
@@ -33,6 +47,7 @@ async function show3D(){
     }
 
     Cesium.Ion.defaultAccessToken=CESIUM_ION_TOKEN;
+    info.innerHTML='<b>3D diagnostic</b><span>Step 1: creating Cesium Viewer…</span>';
     viewer=new Cesium.Viewer('threeMap',{
       geocoder:Cesium.IonGeocodeProviderType.GOOGLE,homeButton:false,sceneModePicker:false,baseLayerPicker:false,
       navigationHelpButton:false,animation:false,timeline:false,fullscreenButton:false,
@@ -40,6 +55,7 @@ async function show3D(){
     });
 
     try{
+      info.innerHTML='<b>3D diagnostic</b><span>Step 2: requesting ion asset 2275207…</span>';
       googleTileset=viewer.scene.primitives.add(
         await Cesium.Cesium3DTileset.fromIonAssetId(2275207)
       );
