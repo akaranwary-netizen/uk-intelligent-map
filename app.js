@@ -23,16 +23,13 @@ async function show3D(){
 
     Cesium.Ion.defaultAccessToken=CESIUM_ION_TOKEN;
     viewer=new Cesium.Viewer('threeMap',{
-      geocoder:false,homeButton:false,sceneModePicker:false,baseLayerPicker:false,
+      geocoder:Cesium.IonGeocodeProviderType.GOOGLE,homeButton:false,sceneModePicker:false,baseLayerPicker:false,
       navigationHelpButton:false,animation:false,timeline:false,fullscreenButton:false,
       infoBox:false,selectionIndicator:false,globe:false
     });
 
     try{
-      googleTileset=await Cesium.createGooglePhotorealistic3DTileset(
-        {onlyUsingWithGoogleGeocoder:true},
-        {showCreditsOnScreen:true}
-      );
+      googleTileset=await Cesium.createGooglePhotorealistic3DTileset();
       viewer.scene.primitives.add(googleTileset);
       const c=map.getCenter();
       viewer.camera.setView({
