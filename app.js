@@ -8,7 +8,7 @@ function toggleMarkers(k,on){if(!markers[k]) markers[k]=(points[k]||[]).map(p=>{
 document.querySelectorAll('.layers button').forEach(b=>b.onclick=()=>{b.classList.toggle('on');let k=b.dataset.layer,on=b.classList.contains('on');if(k==='traffic'){if(map.getLayer('traffic'))map.setLayoutProperty('traffic','visibility',on?'visible':'none')}else toggleMarkers(k,on);info.innerHTML=`<b>${b.textContent.trim()}</b><span>${on?'Layer enabled':'Layer hidden'} — demo data in this prototype.</span>`});
 // Paste your PUBLIC, read-only Cesium ion token between the quotes below.
 // Keep private/write scopes disabled and restrict the token to your site in Cesium ion.
-const CESIUM_ION_TOKEN='PASTE_YOUR_CESIUM_ION_TOKEN_HERE';
+const CESIUM_ION_TOKEN='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJub25jZSI6IjB5TURTMzZTNGdJa29LTUIiLCJqdGkiOiJjMTZmYzM4MS1mOGFkLTQ5NzQtOGE4My1lODhkNjhlNjY2YzEiLCJpZCI6NDk3NzMyLCJzdWIiOiJha2FyYW53YXJ5LW5ldGl6ZW4iLCJpc3MiOiJodHRwczovL2FwaS5jZXNpdW0uY29tIiwiYXVkIjoiVWsgbWFwIiwiaWF0IjoxNzg5NjAxMjM4fQ.P8ZvLq4hqIfVBpJclJaj7QhRCNny5r7XkhM-z0MAWaE';
 
 let viewer,googleTileset;
 async function show3D(){
@@ -16,8 +16,8 @@ async function show3D(){
   document.querySelector('#threeMap').style.display='block';
 
   if(!viewer){
-    if(!CESIUM_ION_TOKEN || CESIUM_ION_TOKEN==='PASTE_YOUR_CESIUM_ION_TOKEN_HERE'){
-      info.innerHTML='<b>3D token needed</b><span>Open app.js and replace PASTE_YOUR_CESIUM_ION_TOKEN_HERE with your public read-only Cesium ion token.</span>';
+    if(!CESIUM_ION_TOKEN || CESIUM_ION_TOKEN==='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJub25jZSI6IjB5TURTMzZTNGdJa29LTUIiLCJqdGkiOiJjMTZmYzM4MS1mOGFkLTQ5NzQtOGE4My1lODhkNjhlNjY2YzEiLCJpZCI6NDk3NzMyLCJzdWIiOiJha2FyYW53YXJ5LW5ldGl6ZW4iLCJpc3MiOiJodHRwczovL2FwaS5jZXNpdW0uY29tIiwiYXVkIjoiVWsgbWFwIiwiaWF0IjoxNzg5NjAxMjM4fQ.P8ZvLq4hqIfVBpJclJaj7QhRCNny5r7XkhM-z0MAWaE'){
+      info.innerHTML='<b>3D token needed</b><span>Open app.js and replace eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJub25jZSI6IjB5TURTMzZTNGdJa29LTUIiLCJqdGkiOiJjMTZmYzM4MS1mOGFkLTQ5NzQtOGE4My1lODhkNjhlNjY2YzEiLCJpZCI6NDk3NzMyLCJzdWIiOiJha2FyYW53YXJ5LW5ldGl6ZW4iLCJpc3MiOiJodHRwczovL2FwaS5jZXNpdW0uY29tIiwiYXVkIjoiVWsgbWFwIiwiaWF0IjoxNzg5NjAxMjM4fQ.P8ZvLq4hqIfVBpJclJaj7QhRCNny5r7XkhM-z0MAWaE with your public read-only Cesium ion token.</span>';
       return;
     }
 
