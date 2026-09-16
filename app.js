@@ -16,7 +16,7 @@ async function show3D(){
   document.querySelector('#threeMap').style.display='block';
 
   if(!viewer){
-    if(!CESIUM_ION_TOKEN || CESIUM_ION_TOKEN==='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJub25jZSI6IjB5TURTMzZTNGdJa29LTUIiLCJqdGkiOiJjMTZmYzM4MS1mOGFkLTQ5NzQtOGE4My1lODhkNjhlNjY2YzEiLCJpZCI6NDk3NzMyLCJzdWIiOiJha2FyYW53YXJ5LW5ldGl6ZW4iLCJpc3MiOiJodHRwczovL2FwaS5jZXNpdW0uY29tIiwiYXVkIjoiVWsgbWFwIiwiaWF0IjoxNzg5NjAxMjM4fQ.P8ZvLq4hqIfVBpJclJaj7QhRCNny5r7XkhM-z0MAWaE'){
+    if(!CESIUM_ION_TOKEN){
       info.innerHTML='<b>3D token needed</b><span>Open app.js and replace eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJub25jZSI6IjB5TURTMzZTNGdJa29LTUIiLCJqdGkiOiJjMTZmYzM4MS1mOGFkLTQ5NzQtOGE4My1lODhkNjhlNjY2YzEiLCJpZCI6NDk3NzMyLCJzdWIiOiJha2FyYW53YXJ5LW5ldGl6ZW4iLCJpc3MiOiJodHRwczovL2FwaS5jZXNpdW0uY29tIiwiYXVkIjoiVWsgbWFwIiwiaWF0IjoxNzg5NjAxMjM4fQ.P8ZvLq4hqIfVBpJclJaj7QhRCNny5r7XkhM-z0MAWaE with your public read-only Cesium ion token.</span>';
       return;
     }
