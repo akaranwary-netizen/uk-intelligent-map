@@ -29,8 +29,9 @@ async function show3D(){
     });
 
     try{
-      googleTileset=await Cesium.createGooglePhotorealistic3DTileset();
-      viewer.scene.primitives.add(googleTileset);
+      googleTileset=viewer.scene.primitives.add(
+        await Cesium.Cesium3DTileset.fromIonAssetId(2275207)
+      );
       const c=map.getCenter();
       viewer.camera.setView({
         destination:Cesium.Cartesian3.fromDegrees(c.lng,c.lat,1800),
