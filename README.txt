@@ -1,34 +1,20 @@
-UK INTELLIGENT MAP — PREMIUM FLIGHT TRACKER + REAL 3D AIRCRAFT
+AI FIX — replace only server.js and ai-client.js
 
-REPLACE ONLY:
-- flights-live.js
+1. Upload/replace these two files in your GitHub repository.
+2. In Render confirm the service type is WEB SERVICE, not Static Site.
+3. Build command: npm run build
+4. Start command: npm start
+5. Environment must contain GEMINI_API_KEY.
+6. Redeploy.
 
-Do not replace index.html, app.js, style.css, build.js, navigation files or luxury-ui.js.
+Then test:
+https://YOUR-SITE.onrender.com/health
 
-WHAT'S NEW
-- redesigned premium flight information sheet
-- Overview / Route / Aircraft / More tabs
-- flight number, airline (when available), departure, destination
-- altitude, speed, heading, vertical speed
-- aircraft model, manufacturer, registration, build year, age, engines
-- ICAO24/hex, squawk, terminals, gates, baggage, schedule, delay when AirLabs provides them
-- observed route trail
-- manual Refresh button
-- real 3D Follow mode using your existing Cesium + Google Photorealistic 3D map
+It should show JSON similar to:
+{"ok":true,"gemini_key":true,"model":"gemini-2.5-flash-lite"}
 
-CRITICAL 3D FIX
-The aircraft is no longer a picture attached to the screen.
-It is a real Cesium 3D model entity placed at the AirLabs latitude, longitude and altitude.
-The camera follows BEHIND that real 3D model.
+If gemini_key is false, the key is not set on the Web Service.
 
-3D MODEL
-This uses Cesium's public CesiumAir GLB sample model from the official Cesium GitHub repository.
-It is not an airline-specific livery, but it is a true 3D aircraft object.
-
-POSITION ACCURACY
-Normal-map aircraft are tied to AirLabs real positions.
-There is no dead-reckoning. The only animation is easing between one real AirLabs fix and the next real fix.
-
-ROUTE NOTE
-The blue trail contains positions observed by your map.
-The dashed line ahead is only a heading guide, not a claimed exact ATC route.
+Voice:
+On iPhone, Safari will ask for microphone permission. Allow it.
+If permission was previously blocked: iPhone Settings > Apps > Safari > Microphone (or website settings) > Allow.
