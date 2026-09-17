@@ -1,21 +1,25 @@
-UK INTELLIGENT MAP — AIRLABS LIVE FLIGHTS
+UK INTELLIGENT MAP — AIRCRAFT FOLLOW / DASHCAM UPGRADE
 
-You already added AIRLABS_API_KEY in Render.
-
-Replace ONLY:
-- build.js
+REPLACE ONLY:
 - flights-live.js
 
-Then redeploy.
+Do not replace any other file.
 
-What this does:
-- build.js exposes the Render AIRLABS_API_KEY to the browser config
-- flights-live.js uses AirLabs Real-Time Flights API
-- requests only the current visible map bounding box
-- shows live aircraft markers
-- rotates planes by heading
-- tap a plane for flight, altitude, speed, route and aircraft type
-- refreshes every 20 seconds and when the map moves
+NEW:
+- realistic white/grey aircraft markers with red/green wing lights
+- smooth continuous movement between AirLabs updates
+- tap an aircraft to select it
+- observed blue trail behind the selected aircraft
+- dashed lime heading line in front of it
+- Follow Aircraft button
+- chase-camera / dashcam-style map view
+- Exit Follow button
+- flight, route, altitude and speed shown in the panel
 
-Important:
-Because this is a static website, any API key used directly by browser JavaScript can be visible to visitors in browser developer tools. For production, move AirLabs behind a backend proxy.
+IMPORTANT:
+The blue line behind the plane is based on positions your map has actually observed
+while the layer is running.
+The dashed line ahead is a projected heading guide based on the aircraft's current
+heading and speed. It is NOT the exact ATC route.
+
+Your existing AIRLABS_API_KEY in Render stays exactly as it is.
