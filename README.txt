@@ -1,20 +1,21 @@
-UK INTELLIGENT MAP — FLIGHTLOGIC FREE LIVE FLIGHTS
+UK INTELLIGENT MAP — AIRLABS LIVE FLIGHTS
+
+You already added AIRLABS_API_KEY in Render.
 
 Replace ONLY:
+- build.js
 - flights-live.js
 
-Do not replace index.html, build.js, style.css or any other file.
+Then redeploy.
 
-Your previous live-flights package already loads flights-live.js.
-This version changes the provider from ADSB.lol to FlightLogic.
+What this does:
+- build.js exposes the Render AIRLABS_API_KEY to the browser config
+- flights-live.js uses AirLabs Real-Time Flights API
+- requests only the current visible map bounding box
+- shows live aircraft markers
+- rotates planes by heading
+- tap a plane for flight, altitude, speed, route and aircraft type
+- refreshes every 20 seconds and when the map moves
 
-No API key.
-No Render environment variable.
-No backend proxy.
-
-After Render redeploys:
-1. Open Layers.
-2. Tap Flights.
-3. Live aircraft should appear.
-4. Tap a plane for details.
-5. Moving/zooming the map refreshes the aircraft area.
+Important:
+Because this is a static website, any API key used directly by browser JavaScript can be visible to visitors in browser developer tools. For production, move AirLabs behind a backend proxy.
