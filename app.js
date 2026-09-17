@@ -59,9 +59,17 @@ async function show3D(){
       googleTileset=viewer.scene.primitives.add(
         await Cesium.Cesium3DTileset.fromIonAssetId(2275207)
       );
+      // Sharper photorealistic detail on modern phones while keeping memory reasonable.
+      googleTileset.maximumScreenSpaceError=8;
+      googleTileset.dynamicScreenSpaceError=true;
+      googleTileset.preloadFlightDestinations=true;
+      googleTileset.preloadWhenHidden=false;
+      viewer.scene.fog.enabled=true;
+      viewer.scene.highDynamicRange=true;
+      viewer.scene.globe.depthTestAgainstTerrain=true;
       const c=lastUserLocation ? {lng:lastUserLocation.lng,lat:lastUserLocation.lat} : map.getCenter();
       viewer.camera.setView({
-        destination:Cesium.Cartesian3.fromDegrees(c.lng,c.lat,lastUserLocation?900:1800),
+        destination:Cesium.Cartesian3.fromDegrees(c.lng,c.lat,lastUserLocation?650:1100),
         orientation:{
           heading:Cesium.Math.toRadians(-12),
           pitch:Cesium.Math.toRadians(-48),
@@ -76,7 +84,7 @@ async function show3D(){
     viewer.resize();
     const c=lastUserLocation ? {lng:lastUserLocation.lng,lat:lastUserLocation.lat} : map.getCenter();
     viewer.camera.flyTo({
-      destination:Cesium.Cartesian3.fromDegrees(c.lng,c.lat,lastUserLocation?900:1800),
+      destination:Cesium.Cartesian3.fromDegrees(c.lng,c.lat,lastUserLocation?650:1100),
       orientation:{
         heading:Cesium.Math.toRadians(-12),
         pitch:Cesium.Math.toRadians(-48),
