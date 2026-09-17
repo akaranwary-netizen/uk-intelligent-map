@@ -127,19 +127,24 @@ function goToUserLocation(){
     const lng=p.coords.longitude,lat=p.coords.latitude,accuracy=Math.round(p.coords.accuracy||0);
     showUserLocation(lng,lat,accuracy);
 
-    const is3D=document.querySelector('[data-mode="3d"]').classList.contains('active');
+    const is3D=document.querySelector('#threeMap').style.display==='block';
     if(is3D){
       if(!viewer) await show3D();
       showUserLocation(lng,lat,accuracy);
-      viewer.camera.flyTo({
-        destination:Cesium.Cartesian3.fromDegrees(lng,lat,900),
-        orientation:{
-          heading:Cesium.Math.toRadians(0),
-          pitch:Cesium.Math.toRadians(-55),
-          roll:0
-        },
-        duration:1.2
-      });
+      if(viewer && !viewer.isDestroyed()){
+        viewer.camera.cancelFlight();
+        viewer.camera.flyTo({
+          destination:Cesium.Cartesian3.fromDegrees(lng,lat,650),
+          orientation:{
+            heading:Cesium.Math.toRadians(0),
+            pitch:Cesium.Math.toRadians(-70),
+            roll:0
+          },
+          duration:1.5,
+          complete:()=>viewer.scene.requestRender()
+        });
+        viewer.scene.requestRender();
+      }
     }else{
       map.flyTo({center:[lng,lat],zoom:16,pitch:45,duration:1200});
     }
@@ -152,12 +157,12 @@ function goToUserLocation(){
 
 document.querySelector('#locate').onclick=goToUserLocation;
 document.querySelector('#zoomIn').onclick=()=>{
-  const is3D=document.querySelector('[data-mode="3d"]').classList.contains('active');
+  const is3D=document.querySelector('#threeMap').style.display==='block';
   if(is3D&&viewer) viewer.camera.zoomIn(viewer.camera.positionCartographic.height*.35);
   else map.zoomIn();
 };
 document.querySelector('#zoomOut').onclick=()=>{
-  const is3D=document.querySelector('[data-mode="3d"]').classList.contains('active');
+  const is3D=document.querySelector('#threeMap').style.display==='block';
   if(is3D&&viewer) viewer.camera.zoomOut(viewer.camera.positionCartographic.height*.35);
   else map.zoomOut();
 };
