@@ -1,25 +1,25 @@
-UK INTELLIGENT MAP — AIRCRAFT FOLLOW / DASHCAM UPGRADE
+UK INTELLIGENT MAP — CINEMATIC 3D AIRCRAFT FOLLOW
 
 REPLACE ONLY:
 - flights-live.js
 
-Do not replace any other file.
+Do not replace any other files.
 
-NEW:
-- realistic white/grey aircraft markers with red/green wing lights
-- smooth continuous movement between AirLabs updates
-- tap an aircraft to select it
-- observed blue trail behind the selected aircraft
-- dashed lime heading line in front of it
-- Follow Aircraft button
-- chase-camera / dashcam-style map view
-- Exit Follow button
-- flight, route, altitude and speed shown in the panel
+WHAT CHANGED
+- normal-map aircraft stay tied to REAL AirLabs coordinates
+- removed fake/dead-reckoned movement
+- new real AirLabs fixes animate only between the old real fix and the new real fix
+- tap a plane to open Follow Aircraft
+- Follow Aircraft switches into your existing Cesium/Google Photorealistic 3D map
+- chase camera sits behind and above the aircraft
+- cinematic dark overlay, heading, destination, realistic rear-view aircraft graphic
+- glowing observed trail + dashed heading guide in 3D
+- flight card: route, altitude, speed, heading, aircraft type
+- Exit Follow returns to the 2D Navigation map at the selected aircraft
 
-IMPORTANT:
-The blue line behind the plane is based on positions your map has actually observed
-while the layer is running.
-The dashed line ahead is a projected heading guide based on the aircraft's current
-heading and speed. It is NOT the exact ATC route.
-
-Your existing AIRLABS_API_KEY in Render stays exactly as it is.
+IMPORTANT
+- The 3D plane graphic is a cinematic screen overlay so it looks large and clear like the concept image.
+- The 3D camera and route lines use the aircraft's REAL AirLabs coordinates.
+- The dashed line ahead is a heading guide, not a guaranteed ATC flight path.
+- The blue trail contains positions observed while this site is running.
+- Existing AIRLABS_API_KEY remains unchanged.
