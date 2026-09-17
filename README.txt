@@ -1,26 +1,21 @@
-FINAL GEMINI LIVE FIX
+GEMINI LIVE SDK CONNECTION FIX
 
 Replace:
 - server.js
 - ai-client.js
 - package.json
 
-This version removes the 'ws' npm dependency completely.
-It uses Google's documented short-lived ephemeral Live token.
-No npm packages are required.
+Why this version is different:
+- Uses Google's current @google/genai Live SDK in the browser instead of hand-building the WebSocket protocol.
+- Uses a constrained short-lived Gemini token generated on your Render server.
+- No ws npm dependency.
+- Adds a 10-second connection diagnostic instead of sitting on 'Connecting...' forever.
+- Keeps the map visible and continuous one-tap voice session.
+- Keeps map tools: layers, 3D, place search, navigation, locate, zoom.
 
 Render:
-Build Command: npm run build
-Start Command: npm start
+Build command: npm run build
+Start command: npm start
 
-Keep GEMINI_API_KEY exactly as it is.
-Then use Manual Deploy -> Clear build cache & deploy.
-
-Health test:
-https://YOUR-WEB-SERVICE.onrender.com/health
-
-Expected:
-"ok": true
-"gemini_key": true
-"live_model": "gemini-3.8-live"
-"live_auth": "ephemeral-token"
+Keep GEMINI_API_KEY unchanged.
+Then Manual Deploy -> Clear build cache & deploy.
