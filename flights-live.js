@@ -1,112 +1,220 @@
-/* UK Intelligent Map — live aircraft layer powered by ADSB.lol */
+/* UK Intelligent Map — FlightLogic live aircraft layer
+   Free, no-key, browser-CORS endpoint:
+   https://flightlogic.co.uk/api/flights?lat=...&lon=...
+*/
 (()=>{
-  const API='https://api.adsb.lol/v2';
-  const REFRESH_MS=10000;
-  const MAX_RADIUS_NM=250;
-  const UK={w:-11.5,e:3.5,s:49.0,n:61.5};
-  let enabled=false,timer=null,moveTimer=null,markers=new Map(),busy=false;
-
-  const btn=()=>document.querySelector('.layers button[data-layer="flights"]');
+  const ENDPOINT='https://flightlogic.co.uk/api/flights';
+  const REFRESH_MS=15000;
   const info=()=>document.querySelector('#info');
+  const button=()=>document.querySelector('.layers button[data-layer="flights"]');
+
+  let enabled=false, busy=false, timer=null, moveTimer=null;
+  const markers=new Map();
+
+  const esc=s=>String(s??'').replace(/[&<>"']/g,c=>(
+    {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]
+  ));
+  const num=v=>{
+    const n=Number(v);
+    return Number.isFinite(n)?n:null;
+  };
+  const first=(obj,keys)=>{
+    for(const k of keys){
+      if(obj && obj[k]!==undefined && obj[k]!==null && obj[k]!=='') return obj[k];
+    }
+    return null;
+  };
   const clean=v=>typeof v==='string'?v.trim():v;
-  const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  const nm=(lat1,lon1,lat2,lon2)=>{
-    const R=3440.065,d2r=Math.PI/180;
-    const a=Math.sin((lat2-lat1)*d2r/2)**2+Math.cos(lat1*d2r)*Math.cos(lat2*d2r)*Math.sin((lon2-lon1)*d2r/2)**2;
-    return 2*R*Math.asin(Math.sqrt(a));
-  };
-  const visibleUK=()=>{
-    const b=map.getBounds();
-    return !(b.getEast()<UK.w||b.getWest()>UK.e||b.getNorth()<UK.s||b.getSouth()>UK.n);
-  };
-  function queryCircle(){
-    const b=map.getBounds(), c=map.getCenter();
-    const lat=Math.max(UK.s,Math.min(UK.n,c.lat)),lon=Math.max(UK.w,Math.min(UK.e,c.lng));
-    const corners=[[b.getNorth(),b.getEast()],[b.getNorth(),b.getWest()],[b.getSouth(),b.getEast()],[b.getSouth(),b.getWest()]];
-    let r=Math.max(...corners.map(x=>nm(lat,lon,x[0],x[1])));
-    if(map.getZoom()<6){ return {lat:54.5,lon:-2.5,r:MAX_RADIUS_NM}; }
-    return {lat,lon,r:Math.max(15,Math.min(MAX_RADIUS_NM,Math.ceil(r*1.15)))};
+
+  function normalise(a){
+    return {
+      id: String(first(a,['hex','icao24','icao','id','registration','reg','callsign','flight','flight_number']) || Math.random()),
+      lat: num(first(a,['lat','latitude'])),
+      lon: num(first(a,['lon','lng','longitude'])),
+      callsign: clean(first(a,['flight','callsign','flight_number','flightNumber','number'])) || 'Unknown flight',
+      altitude: first(a,['alt_baro','altitude','altitude_ft','altitudeFeet','alt']),
+      speed: first(a,['gs','speed','ground_speed','groundSpeed','velocity']),
+      heading: first(a,['track','heading','direction','course']),
+      hex: clean(first(a,['hex','icao24','icao'])),
+      registration: clean(first(a,['registration','reg'])),
+      raw:a
+    };
   }
-  function planeEl(a){
+
+  function unwrap(data){
+    if(Array.isArray(data)) return data;
+    for(const key of ['flights','aircraft','ac','results','data','items']){
+      if(Array.isArray(data?.[key])) return data[key];
+    }
+    return [];
+  }
+
+  function aircraftElement(){
     const wrap=document.createElement('button');
-    wrap.type='button'; wrap.className='live-aircraft';
-    wrap.style.cssText='border:0;background:transparent;padding:0;width:34px;height:34px;display:grid;place-items:center;cursor:pointer;filter:drop-shadow(0 2px 5px #000b)';
+    wrap.type='button';
+    wrap.className='live-aircraft';
+    wrap.setAttribute('aria-label','Live aircraft');
+    wrap.style.cssText='border:0;background:transparent;padding:0;width:36px;height:36px;display:grid;place-items:center;cursor:pointer;filter:drop-shadow(0 2px 5px #000c)';
     const icon=document.createElement('span');
-    icon.textContent='✈'; icon.style.cssText='display:block;color:#d8ff2f;font-size:25px;line-height:1;transform-origin:50% 50%;text-shadow:0 0 8px #000,0 0 12px #d8ff2f55';
+    icon.textContent='✈';
+    icon.style.cssText='display:block;color:#d8ff2f;font-size:26px;line-height:1;transform-origin:center;text-shadow:0 0 7px #000,0 0 12px #d8ff2f55';
     wrap.appendChild(icon);
-    wrap.addEventListener('click',e=>{e.stopPropagation();showAircraft(a);});
     return {wrap,icon};
   }
+
   function showAircraft(a){
-    const call=clean(a.flight)||'Unknown flight',alt=a.alt_baro==='ground'?'On ground':Number.isFinite(+a.alt_baro)?Math.round(+a.alt_baro).toLocaleString()+' ft':'Altitude unavailable';
-    const speed=Number.isFinite(+a.gs)?Math.round(+a.gs)+' kt':'Speed unavailable';
-    const heading=Number.isFinite(+a.track)?Math.round(+a.track)+'°':'Heading unavailable';
-    info().innerHTML=`<b>✈ ${esc(call)}</b><span>${esc(alt)} · ${esc(speed)} · ${esc(heading)}${a.hex?' · ICAO '+esc(String(a.hex).toUpperCase()):''}</span>`;
+    let alt='Altitude unavailable';
+    if(String(a.altitude).toLowerCase()==='ground') alt='On ground';
+    else if(num(a.altitude)!==null) alt=Math.round(num(a.altitude)).toLocaleString()+' ft';
+
+    let speed='Speed unavailable';
+    if(num(a.speed)!==null) speed=Math.round(num(a.speed))+' kt';
+
+    let heading='Heading unavailable';
+    if(num(a.heading)!==null) heading=Math.round(num(a.heading))+'°';
+
+    const extra=a.registration ? ' · '+esc(a.registration) : (a.hex ? ' · ICAO '+esc(String(a.hex).toUpperCase()) : '');
+    if(info()) info().innerHTML=`<b>✈ ${esc(a.callsign)}</b><span>${esc(alt)} · ${esc(speed)} · ${esc(heading)}${extra}</span>`;
   }
-  function updateMarker(a){
-    if(!Number.isFinite(+a.lat)||!Number.isFinite(+a.lon))return;
-    const id=String(a.hex||clean(a.flight)||`${a.lat},${a.lon}`);
-    let x=markers.get(id);
+
+  function upsert(a){
+    if(a.lat===null || a.lon===null) return;
+    let x=markers.get(a.id);
     if(!x){
-      const el=planeEl(a);
-      const marker=new maplibregl.Marker({element:el.wrap,anchor:'center'}).setLngLat([+a.lon,+a.lat]).addTo(map);
-      x={marker,el:el.wrap,icon:el.icon,data:a,last:Date.now()}; markers.set(id,x);
+      const el=aircraftElement();
+      const marker=new maplibregl.Marker({element:el.wrap,anchor:'center'})
+        .setLngLat([a.lon,a.lat]).addTo(map);
+      x={marker,el:el.wrap,icon:el.icon,data:a,last:Date.now()};
+      markers.set(a.id,x);
+      el.wrap.addEventListener('click',e=>{
+        e.stopPropagation();
+        showAircraft(x.data);
+      });
     }
-    x.data=a;x.last=Date.now();x.marker.setLngLat([+a.lon,+a.lat]);
-    const tr=Number.isFinite(+a.track)?+a.track:0;
-    x.icon.style.transform=`rotate(${tr-45}deg)`;
-    x.el.onclick=()=>showAircraft(x.data);
+    x.data=a;
+    x.last=Date.now();
+    x.marker.setLngLat([a.lon,a.lat]);
+
+    const h=num(a.heading);
+    // Unicode plane points roughly NE by default, offset for visual heading.
+    x.icon.style.transform=`rotate(${(h ?? 45)-45}deg)`;
   }
-  function prune(seen){
-    for(const [id,x] of markers) if(!seen.has(id)){x.marker.remove();markers.delete(id);}
-  }
-  function clear(){
-    for(const x of markers.values())x.marker.remove();
+
+  function clearAll(){
+    for(const x of markers.values()) x.marker.remove();
     markers.clear();
   }
+
+  function requestPoints(){
+    const b=map.getBounds(), c=map.getCenter(), z=map.getZoom();
+
+    // Close view: one request is enough.
+    if(z>=7) return [[c.lat,c.lng]];
+
+    // Wider UK view: sample up to four areas of the current viewport.
+    const n=Math.min(60.8,b.getNorth()), s=Math.max(49.5,b.getSouth());
+    const w=Math.max(-8.8,b.getWest()), e=Math.min(2.2,b.getEast());
+    if(n<=s || e<=w) return [[c.lat,c.lng]];
+
+    const midLat=(n+s)/2, midLon=(w+e)/2;
+    return [
+      [(n+midLat)/2,(w+midLon)/2],
+      [(n+midLat)/2,(e+midLon)/2],
+      [(s+midLat)/2,(w+midLon)/2],
+      [(s+midLat)/2,(e+midLon)/2],
+    ];
+  }
+
+  async function fetchArea(lat,lon){
+    const url=`${ENDPOINT}?lat=${encodeURIComponent(lat.toFixed(4))}&lon=${encodeURIComponent(lon.toFixed(4))}`;
+    const r=await fetch(url,{headers:{Accept:'application/json'},cache:'no-store'});
+    if(!r.ok) throw new Error('FlightLogic HTTP '+r.status);
+    const data=await r.json();
+    return unwrap(data).map(normalise).filter(a=>a.lat!==null && a.lon!==null);
+  }
+
   async function refresh(){
-    if(!enabled||busy||!visibleUK())return;
+    if(!enabled || busy) return;
     busy=true;
     try{
-      const q=queryCircle();
-      const url=`${API}/lat/${q.lat.toFixed(4)}/lon/${q.lon.toFixed(4)}/dist/${q.r}`;
-      const res=await fetch(url,{headers:{Accept:'application/json'},cache:'no-store'});
-      if(!res.ok)throw new Error('Aircraft service HTTP '+res.status);
-      const data=await res.json(), ac=Array.isArray(data.ac)?data.ac:[];
+      const pts=requestPoints();
+      const results=await Promise.allSettled(pts.map(([lat,lon])=>fetchArea(lat,lon)));
+      const all=[];
+      for(const r of results) if(r.status==='fulfilled') all.push(...r.value);
+
+      if(!all.length && results.every(r=>r.status==='rejected')){
+        throw results[0].reason || new Error('No flight responses');
+      }
+
+      // De-duplicate aircraft returned by overlapping 100 km circles.
+      const latest=new Map();
+      for(const a of all) latest.set(a.id,a);
+
       const seen=new Set();
-      ac.forEach(a=>{if(Number.isFinite(+a.lat)&&Number.isFinite(+a.lon)){const id=String(a.hex||clean(a.flight)||`${a.lat},${a.lon}`);seen.add(id);updateMarker(a);}});
-      prune(seen);
-      if(enabled) info().innerHTML=`<b>✈ Live Flights</b><span>${ac.filter(a=>Number.isFinite(+a.lat)&&Number.isFinite(+a.lon)).length} aircraft received for this map area · ADSB.lol live feed</span>`;
+      for(const a of latest.values()){
+        seen.add(a.id);
+        upsert(a);
+      }
+      for(const [id,x] of markers){
+        if(!seen.has(id)){
+          x.marker.remove();
+          markers.delete(id);
+        }
+      }
+
+      if(info()) info().innerHTML=
+        `<b>✈ Live Flights</b><span>${latest.size} aircraft currently received around this map area · FlightLogic</span>`;
     }catch(err){
-      console.error('Live flights:',err);
-      if(enabled) info().innerHTML='<b>✈ Live Flights</b><span>Aircraft feed could not refresh right now. The map will try again automatically.</span>';
-    }finally{busy=false;}
-  }
-  function setEnabled(on){
-    enabled=on;
-    if(timer){clearInterval(timer);timer=null;}
-    if(on){
-      clear();refresh();
-      timer=setInterval(refresh,REFRESH_MS);
-      info().innerHTML='<b>✈ Live Flights</b><span>Connecting to live aircraft positions…</span>';
-    }else{
-      clear();
-      info().innerHTML='<b>Flights</b><span>Live aircraft layer hidden.</span>';
+      console.error('FlightLogic live flights:',err);
+      if(info()) info().innerHTML=
+        '<b>✈ Live Flights</b><span>Live aircraft could not refresh right now. The map will retry automatically.</span>';
+    }finally{
+      busy=false;
     }
   }
-  function hook(){
-    const b=btn(); if(!b)return;
-    /* app.js owns the layer button click; run after it and replace demo flight marker */
-    b.addEventListener('click',()=>setTimeout(()=>{
-      const on=b.classList.contains('on');
-      if(window.markers?.flights) window.markers.flights.forEach(m=>m.remove?.());
-      setEnabled(on);
-    },0));
-    map.on('moveend',()=>{
-      if(!enabled)return;
-      clearTimeout(moveTimer);moveTimer=setTimeout(refresh,350);
-    });
-    map.on('styledata',()=>{ if(enabled)setTimeout(refresh,250); });
+
+  function setEnabled(on){
+    enabled=on;
+    clearInterval(timer); timer=null;
+
+    if(on){
+      clearAll();
+      if(info()) info().innerHTML='<b>✈ Live Flights</b><span>Connecting to live aircraft…</span>';
+      refresh();
+      timer=setInterval(refresh,REFRESH_MS);
+    }else{
+      clearAll();
+      if(info()) info().innerHTML='<b>Flights</b><span>Live aircraft layer hidden.</span>';
+    }
   }
-  if(map.loaded())hook();else map.once('load',hook);
+
+  function hook(){
+    const b=button();
+    if(!b) return;
+
+    // app.js already toggles the button. We run immediately after and replace its demo flight marker.
+    b.addEventListener('click',()=>{
+      setTimeout(()=>{
+        const on=b.classList.contains('on');
+
+        // Hide/remove any prototype flight marker created by app.js.
+        try{
+          if(window.markers?.flights){
+            window.markers.flights.forEach(m=>m.remove?.());
+          }
+        }catch(_){}
+
+        setEnabled(on);
+      },0);
+    });
+
+    map.on('moveend',()=>{
+      if(!enabled) return;
+      clearTimeout(moveTimer);
+      moveTimer=setTimeout(refresh,500);
+    });
+  }
+
+  if(map.loaded()) hook();
+  else map.once('load',hook);
 })();

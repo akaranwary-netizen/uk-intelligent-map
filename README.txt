@@ -1,18 +1,20 @@
-UK INTELLIGENT MAP — LIVE FLIGHTS
+UK INTELLIGENT MAP — FLIGHTLOGIC FREE LIVE FLIGHTS
 
-Upload/replace ONLY:
-1. flights-live.js (NEW)
-2. index.html
-3. build.js
+Replace ONLY:
+- flights-live.js
 
-Do not change your existing style.css, app.js, navigation.js, navigation.css,
-map-theme.js, traffic-live.js or luxury-ui.js.
+Do not replace index.html, build.js, style.css or any other file.
 
-No ADSB.lol API key is required.
+Your previous live-flights package already loads flights-live.js.
+This version changes the provider from ADSB.lol to FlightLogic.
 
-After Render deploys:
-- Open the small layers control.
-- Tap Flights.
-- Real aircraft positions appear on the Navigation Map.
-- Move/zoom the map and the feed refreshes for the visible UK area.
-- Tap a plane to see callsign, altitude, speed, heading and ICAO when available.
+No API key.
+No Render environment variable.
+No backend proxy.
+
+After Render redeploys:
+1. Open Layers.
+2. Tap Flights.
+3. Live aircraft should appear.
+4. Tap a plane for details.
+5. Moving/zooming the map refreshes the aircraft area.
