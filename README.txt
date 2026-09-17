@@ -1,21 +1,18 @@
-UK INTELLIGENT MAP - NAVIGATION V2
+UK INTELLIGENT MAP — LUXURY UI
 
-Upload/replace ONLY these three files in GitHub:
-1. navigation.js
-2. navigation.css
-3. build.js
+Replace/upload ONLY:
+- style.css
+- index.html
+- build.js
+- luxury-ui.js (new file)
 
-Do not change app.js, style.css, map-theme.js, traffic-live.js or index.html.
+KEEP your existing:
+- app.js
+- map-theme.js
+- traffic-live.js
+- navigation.js
+- navigation.css
+- Render TOMTOM_API_KEY
 
-Then deploy the latest commit on Render.
-
-Includes:
-- live UK postcode/address/place suggestions
-- route preview + Start
-- moving GPS follow / rotating map
-- turn instruction panel
-- ETA, remaining time and distance
-- Overview + Re-centre
-- End/Cancel
-- off-route rerouting
-- iPhone compass permission support
+The small bottom-left control opens the map options vertically and collapses after a selection.
+This package changes the interface only; it does not replace the map/data/navigation engines.
