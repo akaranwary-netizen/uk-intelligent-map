@@ -1,0 +1,13 @@
+
+/* Navigation upgrade */
+.live-nav-arrow{width:58px;height:58px;position:relative;pointer-events:none}
+.heading-cone{position:absolute;left:50%;top:50%;width:0;height:0;border-left:17px solid transparent;border-right:17px solid transparent;border-bottom:48px solid rgba(47,124,255,.30);transform-origin:50% 88%;filter:drop-shadow(0 0 4px rgba(47,124,255,.5))}
+.heading-dot{position:absolute;left:50%;top:50%;width:20px;height:20px;transform:translate(-50%,-50%);border-radius:50%;background:#2f7cff;border:4px solid white;box-shadow:0 0 0 6px rgba(47,124,255,.25),0 3px 10px #0008}
+@media(max-width:700px){
+ header{pointer-events:none}
+ header .brand{display:none}
+ header .ask{pointer-events:auto;position:absolute;right:8px;top:8px;padding:10px 12px;font-size:12px}
+ header .search.nav-search-visible{display:flex!important;pointer-events:auto;position:absolute;left:8px;right:92px;top:8px;max-width:none;height:44px;align-items:center;padding:8px 13px;border-radius:22px;background:#132538f5}
+ header .search.nav-search-visible input{display:block!important;width:calc(100% - 22px);font-size:14px}
+ .modes{top:61px}
+}
