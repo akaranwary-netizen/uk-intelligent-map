@@ -1,22 +1,26 @@
-GEMINI LIVE RELAY FIX
-
-The previous error was caused while creating the temporary Live token.
-This version removes that token step entirely.
+FINAL GEMINI LIVE FIX
 
 Replace:
 - server.js
 - ai-client.js
 - package.json
 
+This version removes the 'ws' npm dependency completely.
+It uses Google's documented short-lived ephemeral Live token.
+No npm packages are required.
+
 Render:
 Build Command: npm run build
 Start Command: npm start
 
-Keep the same environment variables including GEMINI_API_KEY.
-Then redeploy.
+Keep GEMINI_API_KEY exactly as it is.
+Then use Manual Deploy -> Clear build cache & deploy.
 
-The browser connects to /live on YOUR Render server.
-Your server privately connects to Gemini 3.8 Live using GEMINI_API_KEY.
-The permanent key is never sent to the browser.
+Health test:
+https://YOUR-WEB-SERVICE.onrender.com/health
 
-Tap Ask AI once. The session remains listening until Stop/X.
+Expected:
+"ok": true
+"gemini_key": true
+"live_model": "gemini-3.8-live"
+"live_auth": "ephemeral-token"
