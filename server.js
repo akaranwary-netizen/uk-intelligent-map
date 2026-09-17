@@ -1,108 +1,85 @@
 const http=require('http');
 const fs=require('fs');
 const path=require('path');
+const WebSocket=require('ws');
 
 const PORT=process.env.PORT||10000;
 const GEMINI_KEY=String(process.env.GEMINI_API_KEY||'').trim();
-const TEXT_MODEL=String(process.env.GEMINI_MODEL||'gemini-3.5-flash-lite').trim();
-const LIVE_MODEL='gemini-3.8-live';
 const DIST=path.join(__dirname,'dist');
 
-function sendJSON(res,status,obj){
+function json(res,status,obj){
   res.statusCode=status;
   res.setHeader('Content-Type','application/json; charset=utf-8');
   res.end(JSON.stringify(obj));
 }
-function readBody(req){
-  return new Promise((resolve,reject)=>{
-    let body='';
-    req.on('data',c=>{body+=c;if(body.length>30000){reject(new Error('Request too large'));req.destroy();}});
-    req.on('end',()=>resolve(body));req.on('error',reject);
-  });
-}
-function extractText(data){
-  return data?.candidates?.[0]?.content?.parts?.map(p=>p.text||'').join('')||'';
-}
-function parseModelJSON(raw){
-  let t=String(raw||'').trim().replace(/^```json\s*/i,'').replace(/^```\s*/,'').replace(/```$/,'').trim();
-  const a=t.indexOf('{'),b=t.lastIndexOf('}');if(a>=0&&b>a)t=t.slice(a,b+1);
-  return JSON.parse(t);
-}
-
-const TEXT_SYSTEM=`You are the command brain for UK INTELLIGENT MAP.
-Return ONLY JSON: {"reply":"short natural reply","actions":[]}.
-Never invent live facts. UK map only.`;
-
-async function handleTextAI(req,res){
-  if(!GEMINI_KEY)return sendJSON(res,500,{error:'GEMINI_API_KEY is missing.'});
-  try{
-    const body=JSON.parse(await readBody(req)||'{}');
-    const message=String(body.message||'').trim();
-    const payload={
-      system_instruction:{parts:[{text:TEXT_SYSTEM}]},
-      contents:[{parts:[{text:`User request: ${message}\nContext: ${JSON.stringify(body.context||{})}`}]}],
-      generationConfig:{temperature:.1,responseMimeType:'application/json',maxOutputTokens:700}
-    };
-    const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(TEXT_MODEL)}:generateContent`,{
-      method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':GEMINI_KEY},body:JSON.stringify(payload)
-    });
-    const d=await r.json();
-    if(!r.ok)throw new Error(d?.error?.message||`Gemini ${r.status}`);
-    const p=parseModelJSON(extractText(d));
-    sendJSON(res,200,{reply:String(p.reply||'Done.'),actions:Array.isArray(p.actions)?p.actions:[]});
-  }catch(e){sendJSON(res,500,{error:e.message||'AI request failed'});}
-}
-
-async function handleLiveToken(res){
-  if(!GEMINI_KEY)return sendJSON(res,500,{error:'GEMINI_API_KEY is missing.'});
-  try{
-    const now=Date.now();
-    const payload={
-      uses:1,
-      expireTime:new Date(now+30*60*1000).toISOString(),
-      newSessionExpireTime:new Date(now+60*1000).toISOString(),
-      liveConnectConstraints:{
-        model:`models/${LIVE_MODEL}`,
-        config:{
-          sessionResumption:{},
-          responseModalities:['AUDIO']
-        }
-      }
-    };
-    const r=await fetch('https://generativelanguage.googleapis.com/v1beta/auth_tokens',{
-      method:'POST',
-      headers:{'Content-Type':'application/json','x-goog-api-key':GEMINI_KEY},
-      body:JSON.stringify(payload)
-    });
-    const d=await r.json();
-    if(!r.ok)throw new Error(d?.error?.message||`Token service ${r.status}`);
-    sendJSON(res,200,{token:d.name,model:LIVE_MODEL,expires:d.expireTime||payload.expireTime});
-  }catch(e){
-    console.error('Live token error',e);
-    sendJSON(res,500,{error:e.message||'Could not create Live token'});
-  }
-}
-
 function mime(file){
   return ({'.html':'text/html; charset=utf-8','.js':'application/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg'}[path.extname(file).toLowerCase()]||'application/octet-stream');
 }
 
-const server=http.createServer(async(req,res)=>{
+const server=http.createServer((req,res)=>{
   const pathname=new URL(req.url,'http://localhost').pathname;
-  if(req.method==='GET'&&pathname==='/live-token')return handleLiveToken(res);
-  if(req.method==='POST'&&pathname==='/ai')return handleTextAI(req,res);
-  if(req.method==='GET'&&pathname==='/health')return sendJSON(res,200,{ok:true,gemini_key:!!GEMINI_KEY,text_model:TEXT_MODEL,live_model:LIVE_MODEL});
+  if(req.method==='GET'&&pathname==='/health'){
+    return json(res,200,{ok:true,gemini_key:!!GEMINI_KEY,live_model:'gemini-3.8-live',live_transport:'server-relay'});
+  }
 
   let rel=pathname==='/'?'index.html':pathname.replace(/^\/+/,'');
   rel=path.normalize(rel).replace(/^(\.\.[/\\])+/, '');
   let file=path.join(DIST,rel);
-  if(!file.startsWith(DIST))return sendJSON(res,403,{error:'Forbidden'});
+  if(!file.startsWith(DIST))return json(res,403,{error:'Forbidden'});
   fs.stat(file,(err,st)=>{
     if(err||!st.isFile())file=path.join(DIST,'index.html');
     fs.readFile(file,(e,data)=>{
-      if(e){res.statusCode=404;return res.end('Not found');}
+      if(e){res.statusCode=404;return res.end('Not found')}
       res.statusCode=200;res.setHeader('Content-Type',mime(file));res.end(data);
     });
   });
 });
-server.listen(PORT,()=>console.log(`UK Intelligent Map on ${PORT}; Live=${LIVE_MODEL}; key=${GEMINI_KEY?'yes':'no'}`));
+
+const wss=new WebSocket.Server({noServer:true});
+
+server.on('upgrade',(req,socket,head)=>{
+  const pathname=new URL(req.url,'http://localhost').pathname;
+  if(pathname!=='/live'){socket.destroy();return}
+  if(!GEMINI_KEY){socket.write('HTTP/1.1 503 Service Unavailable\r\n\r\n');socket.destroy();return}
+
+  wss.handleUpgrade(req,socket,head,(client)=>{
+    const google=new WebSocket(
+      `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${encodeURIComponent(GEMINI_KEY)}`
+    );
+
+    let queue=[];
+    google.on('open',()=>{
+      for(const m of queue)google.send(m);
+      queue=[];
+    });
+
+    client.on('message',data=>{
+      if(google.readyState===WebSocket.OPEN)google.send(data);
+      else if(google.readyState===WebSocket.CONNECTING)queue.push(data);
+    });
+
+    google.on('message',data=>{
+      if(client.readyState===WebSocket.OPEN)client.send(data);
+    });
+
+    google.on('close',(code,reason)=>{
+      if(client.readyState===WebSocket.OPEN)client.close(code||1000,String(reason||'Gemini closed'));
+    });
+
+    google.on('error',err=>{
+      console.error('Gemini Live websocket:',err.message);
+      if(client.readyState===WebSocket.OPEN){
+        client.send(JSON.stringify({proxyError:err.message||'Gemini Live connection failed'}));
+        client.close(1011,'Gemini Live error');
+      }
+    });
+
+    client.on('close',()=>{
+      if(google.readyState===WebSocket.OPEN||google.readyState===WebSocket.CONNECTING)google.close();
+    });
+
+    client.on('error',()=>{try{google.close()}catch(_){}});
+  });
+});
+
+server.listen(PORT,()=>console.log(`UK Intelligent Map on ${PORT}; Gemini Live relay ready=${!!GEMINI_KEY}`));
