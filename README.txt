@@ -1,20 +1,21 @@
-AI FIX — replace only server.js and ai-client.js
+LIVE VOICE AI SCREEN
 
-1. Upload/replace these two files in your GitHub repository.
-2. In Render confirm the service type is WEB SERVICE, not Static Site.
-3. Build command: npm run build
-4. Start command: npm start
-5. Environment must contain GEMINI_API_KEY.
-6. Redeploy.
+Replace ONLY:
+- ai-client.js
 
-Then test:
-https://YOUR-SITE.onrender.com/health
+This removes all chat styling.
 
-It should show JSON similar to:
-{"ok":true,"gemini_key":true,"model":"gemini-2.5-flash-lite"}
+New experience:
+- Ask AI opens a full-screen voice assistant
+- glowing active orb
+- live listening animation
+- live speech transcript only while listening
+- AI thinks
+- map action happens
+- AI speaks the answer aloud
+- no chat bubbles
+- no keyboard
+- no text box
+- no conversation history
 
-If gemini_key is false, the key is not set on the Web Service.
-
-Voice:
-On iPhone, Safari will ask for microphone permission. Allow it.
-If permission was previously blocked: iPhone Settings > Apps > Safari > Microphone (or website settings) > Allow.
+Then redeploy the Render Web Service.
