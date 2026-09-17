@@ -66,7 +66,7 @@ async function show3D(){
       googleTileset.preloadWhenHidden=false;
       viewer.scene.fog.enabled=true;
       viewer.scene.highDynamicRange=true;
-      viewer.scene.globe.depthTestAgainstTerrain=true;
+      if(viewer.scene.globe){viewer.scene.globe.depthTestAgainstTerrain=true;}
       const c=lastUserLocation ? {lng:lastUserLocation.lng,lat:lastUserLocation.lat} : map.getCenter();
       viewer.camera.setView({
         destination:Cesium.Cartesian3.fromDegrees(c.lng,c.lat,lastUserLocation?650:1100),
