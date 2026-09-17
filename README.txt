@@ -1,20 +1,21 @@
-UK INTELLIGENT MAP — TOMTOM BRANDED NAVIGATION UPGRADE
+UK INTELLIGENT MAP - NAVIGATION V2
 
-Upload/replace these files in the GitHub repository root:
-1. index.html
-2. build.js
-3. traffic-live.js
-4. map-theme.js (new)
+Upload/replace ONLY these three files in GitHub:
+1. navigation.js
+2. navigation.css
+3. build.js
 
-KEEP unchanged:
-- app.js
-- style.css
-- navigation.js
-- navigation.css
+Do not change app.js, style.css, map-theme.js, traffic-live.js or index.html.
 
-Render:
-Build Command: node build.js
-Publish Directory: dist
-TOMTOM_API_KEY remains in Render Environment Variables.
+Then deploy the latest commit on Render.
 
-This changes only Navigation Map. Existing Cesium/Google 3D mode is untouched.
+Includes:
+- live UK postcode/address/place suggestions
+- route preview + Start
+- moving GPS follow / rotating map
+- turn instruction panel
+- ETA, remaining time and distance
+- Overview + Re-centre
+- End/Cancel
+- off-route rerouting
+- iPhone compass permission support

@@ -1,99 +1,47 @@
 (()=>{
-const cfg=()=>window.APP_CONFIG||{}, key=()=>cfg().TOMTOM_API_KEY||'';
-let destMarker=null, routeReady=false, lastFix=null, heading=0, watchId=null;
-const search=document.querySelector('#search'), infoEl=document.querySelector('#info');
+const K=()=>window.APP_CONFIG?.TOMTOM_API_KEY||'', search=document.querySelector('#search');
+let pos=null,head=0,active=false,overview=false,rt=null,dest=null,dmark=null,pmark=null,timer,abort,lastReroute=0;
 
-function mobileSearch(){
-  if(!search) return;
-  const box=search.closest('.search');
-  if(box) box.classList.add('nav-search-visible');
+document.body.insertAdjacentHTML('beforeend',`
+<div id="navSuggest" class="nav-suggest"></div>
+<div id="routePreview" class="route-preview"><button id="closePreview">×</button><small>Drive to</small><b id="previewName"></b><div><strong id="previewEta"></strong><span id="previewTime"></span><span id="previewDist"></span></div><button id="startNav">Start</button></div>
+<div id="turnCard" class="turn-card"><i id="turnIcon">↑</i><div><strong id="turnDist"></strong><b id="turnText"></b><small id="turnNext"></small></div></div>
+<div id="navBottom" class="nav-bottom"><button id="endNav">✕<small>End</small></button><div><b id="eta"></b><span id="timeLeft"></span><span id="distLeft"></span></div><button id="overviewNav">Overview</button></div>
+<button id="recenterNav" class="recenter-nav">➤ Re-centre</button>`);
+const $=s=>document.querySelector(s), sugg=$('#navSuggest');
+const rad=x=>x*Math.PI/180, esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function d(a,b){let R=6371000,x=rad(b.lat-a.lat),y=rad(b.lng-a.lng),q=Math.sin(x/2)**2+Math.cos(rad(a.lat))*Math.cos(rad(b.lat))*Math.sin(y/2)**2;return 2*R*Math.asin(Math.sqrt(q))}
+function bearing(a,b){let y=rad(b.lng-a.lng),p=rad(a.lat),q=rad(b.lat);return (Math.atan2(Math.sin(y)*Math.cos(q),Math.cos(p)*Math.sin(q)-Math.sin(p)*Math.cos(q)*Math.cos(y))*180/Math.PI+360)%360}
+const fd=m=>m<950?`${Math.max(10,Math.round(m/10)*10)} m`:`${(m/1609.344).toFixed(m<16000?1:0)} mi`;
+const ft=s=>{let m=Math.max(1,Math.round(s/60));return m<60?`${m} min`:`${Math.floor(m/60)} hr ${m%60?m%60+' min':''}`.trim()};
+const eta=s=>new Date(Date.now()+s*1000).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+function icon(m=''){m=m.toUpperCase();if(m.includes('LEFT'))return'↰';if(m.includes('RIGHT'))return'↱';if(m.includes('ROUNDABOUT'))return'⟳';if(m.includes('UTURN'))return'↶';if(m.includes('ARRIVE'))return'●';return'↑'}
+function markerEl(){let e=document.createElement('div');e.className='nav-pos';e.innerHTML='<div class="nav-cone"></div><div class="nav-dot"></div>';return e}
+function paintPos(){if(!pos)return;if(!pmark)pmark=new maplibregl.Marker({element:markerEl(),rotationAlignment:'map',pitchAlignment:'map'}).setLngLat([pos.lng,pos.lat]).addTo(map);pmark.setLngLat([pos.lng,pos.lat]);pmark.getElement().querySelector('.nav-cone').style.transform=`translate(-50%,-88%) rotate(${head}deg)`}
+function follow(){if(!pos)return;overview=false;$('#recenterNav').classList.remove('show');map.easeTo({center:[pos.lng,pos.lat],offset:[0,110],bearing:head,pitch:58,zoom:17.4,duration:450})}
+function gps(p){let n={lng:p.coords.longitude,lat:p.coords.latitude,speed:p.coords.speed||0},h=Number.isFinite(p.coords.heading)?p.coords.heading:null;if(h===null&&pos&&n.speed>.7)h=bearing(pos,n);if(h!==null)head=h;pos=n;paintPos();if(active){guidance();if(!overview)follow();reroute()}}
+navigator.geolocation?.watchPosition(gps,()=>{},{enableHighAccuracy:true,maximumAge:800,timeout:15000});
+function getPos(){return new Promise((ok,no)=>pos?ok(pos):navigator.geolocation.getCurrentPosition(p=>{gps(p);ok(pos)},no,{enableHighAccuracy:true,timeout:15000}))}
+async function find(q,limit=6){
+ let bias=pos?`&lat=${pos.lat}&lon=${pos.lng}`:'';
+ let u=`https://api.tomtom.com/search/2/search/${encodeURIComponent(q)}.json?typeahead=true&limit=${limit}&countrySet=GB&language=en-GB&idxSet=POI,PAD,Str,Xstr,Geo,Addr,EPP${bias}&key=${encodeURIComponent(K())}`;
+ let r=await fetch(u,{signal:abort?.signal});if(!r.ok)throw Error('Search failed');return (await r.json()).results||[]
 }
-mobileSearch();
-
-function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
-function bearing(a,b){
- const r=Math.PI/180, p1=a.lat*r,p2=b.lat*r,dl=(b.lng-a.lng)*r;
- return (Math.atan2(Math.sin(dl)*Math.cos(p2),Math.cos(p1)*Math.sin(p2)-Math.sin(p1)*Math.cos(p2)*Math.cos(dl))*180/Math.PI+360)%360;
-}
-function arrowEl(){
- const el=document.createElement('div'); el.className='live-nav-arrow';
- el.innerHTML='<div class="heading-cone"></div><div class="heading-dot"></div>';
- return el;
-}
-let navArrow=null;
-function updateArrow(lng,lat,h){
- if(!navArrow) navArrow=new maplibregl.Marker({element:arrowEl(),rotationAlignment:'map',pitchAlignment:'map'}).setLngLat([lng,lat]).addTo(map);
- navArrow.setLngLat([lng,lat]);
- const cone=navArrow.getElement().querySelector('.heading-cone');
- if(cone) cone.style.transform=`translate(-50%,-88%) rotate(${h||0}deg)`;
-}
-
-function fix(p, follow=false){
- const n={lng:p.coords.longitude,lat:p.coords.latitude,accuracy:p.coords.accuracy||0};
- let h=Number.isFinite(p.coords.heading)?p.coords.heading:null;
- if(h===null && lastFix && p.coords.speed>0.8) h=bearing(lastFix,n);
- if(h!==null) heading=h;
- lastFix=n; updateArrow(n.lng,n.lat,heading);
- if(follow) map.easeTo({center:[n.lng,n.lat],bearing:heading,pitch:55,zoom:17,duration:500});
-}
-function startTracking(){
- if(watchId!==null||!navigator.geolocation)return;
- watchId=navigator.geolocation.watchPosition(p=>fix(p,routeReady),()=>{}, {enableHighAccuracy:true,maximumAge:1000,timeout:15000});
-}
-startTracking();
-
-async function getFix(){
- return new Promise((resolve,reject)=>{
-  if(lastFix)return resolve(lastFix);
-  navigator.geolocation.getCurrentPosition(p=>{fix(p);resolve(lastFix)},reject,{enableHighAccuracy:true,timeout:15000,maximumAge:2000});
- });
-}
-async function searchPlace(q){
- const url=`https://api.tomtom.com/search/2/search/${encodeURIComponent(q)}.json?limit=5&countrySet=GB&language=en-GB&key=${encodeURIComponent(key())}`;
- const r=await fetch(url); if(!r.ok)throw new Error('TomTom search failed ('+r.status+')');
- const j=await r.json(); if(!j.results?.length)throw new Error('No UK address or place found.');
- return j.results[0];
-}
-async function route(origin,dest){
- const url=`https://api.tomtom.com/routing/1/calculateRoute/${origin.lat},${origin.lng}:${dest.lat},${dest.lng}/json?traffic=true&travelMode=car&routeType=fastest&key=${encodeURIComponent(key())}`;
- const r=await fetch(url); if(!r.ok)throw new Error('TomTom routing failed ('+r.status+')');
- const j=await r.json(); if(!j.routes?.length)throw new Error('No driving route found.');
- return j.routes[0];
-}
-function drawRoute(rt){
- const coords=[];
- rt.legs.forEach(l=>l.points.forEach(p=>coords.push([p.longitude,p.latitude])));
- const data={type:'Feature',geometry:{type:'LineString',coordinates:coords}};
- if(map.getSource('nav-route'))map.getSource('nav-route').setData(data);
- else{
-  map.addSource('nav-route',{type:'geojson',data});
-  map.addLayer({id:'nav-route-outline',type:'line',source:'nav-route',paint:{'line-color':'#ffffff','line-width':9,'line-opacity':.9}});
-  map.addLayer({id:'nav-route',type:'line',source:'nav-route',paint:{'line-color':'#1976ff','line-width':6}});
- }
- const b=coords.reduce((x,c)=>x.extend(c),new maplibregl.LngLatBounds(coords[0],coords[0]));
- map.fitBounds(b,{padding:{top:160,bottom:180,left:90,right:35},duration:900,maxZoom:16});
-}
-async function navigate(q){
- if(!q.trim())return;
- if(!key()){infoEl.innerHTML='<b>Navigation unavailable</b><span>TomTom key is missing.</span>';return;}
- try{
-  infoEl.innerHTML='<b>🔎 Finding destination…</b><span>'+esc(q)+'</span>';
-  const [o,res]=await Promise.all([getFix(),searchPlace(q)]);
-  const d={lng:res.position.lon,lat:res.position.lat};
-  const rt=await route(o,d); drawRoute(rt); routeReady=true;
-  if(destMarker)destMarker.remove();
-  destMarker=new maplibregl.Marker({color:'#e53935'}).setLngLat([d.lng,d.lat]).addTo(map);
-  const s=rt.summary, miles=(s.lengthInMeters/1609.344).toFixed(1), mins=Math.round(s.travelTimeInSeconds/60);
-  const label=res.address?.freeformAddress||res.poi?.name||q;
-  infoEl.innerHTML=`<b>🚗 ${esc(label)}</b><span>${miles} miles • about ${mins} min with current traffic</span>`;
- }catch(e){infoEl.innerHTML='<b>⚠️ Navigation error</b><span>'+esc(e.message)+'</span>';}
-}
-if(search){
- search.placeholder='Search postcode, address or place…';
- search.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();e.stopImmediatePropagation();navigate(search.value)}},true);
-}
-const locate=document.querySelector('#locate');
-if(locate)locate.addEventListener('click',()=>setTimeout(async()=>{try{const p=await getFix();map.easeTo({center:[p.lng,p.lat],zoom:17,pitch:55,bearing:heading,duration:700})}catch(e){}},50),true);
-
-window.addEventListener('deviceorientationabsolute',e=>{if(Number.isFinite(e.alpha)){heading=(360-e.alpha)%360;if(lastFix)updateArrow(lastFix.lng,lastFix.lat,heading)}});
+async function typeahead(){let q=search.value.trim();if(q.length<2){sugg.classList.remove('show');return}abort?.abort();abort=new AbortController();try{let a=await find(q);sugg.innerHTML=a.map((x,i)=>{let t=x.poi?.name||x.address?.freeformAddress||q,sub=[x.address?.freeformAddress,x.address?.postalCode].filter(Boolean).filter(v=>v!==t).join(' • ');return `<button data-i="${i}"><b>${esc(t)}</b><small>${esc(sub)}</small></button>`}).join('');sugg.classList.toggle('show',!!a.length);[...sugg.children].forEach((b,i)=>b.onclick=()=>choose(a[i]))}catch(e){if(e.name!=='AbortError')sugg.classList.remove('show')}}
+async function route(o,z){let u=`https://api.tomtom.com/routing/1/calculateRoute/${o.lat},${o.lng}:${z.lat},${z.lng}/json?traffic=true&travelMode=car&routeType=fastest&instructionsType=text&language=en-GB&instructionAnnouncementPoints=all&maxAlternatives=2&key=${encodeURIComponent(K())}`,r=await fetch(u);if(!r.ok)throw Error('Routing failed ('+r.status+')');let j=await r.json();if(!j.routes?.length)throw Error('No driving route found');return j.routes[0]}
+function pts(){let a=[];(rt?.legs||[]).forEach(l=>l.points.forEach(p=>a.push([p.longitude,p.latitude])));return a}
+function draw(fit=true){let c=pts(),data={type:'Feature',geometry:{type:'LineString',coordinates:c}};if(map.getSource('nav-route'))map.getSource('nav-route').setData(data);else{map.addSource('nav-route',{type:'geojson',data});map.addLayer({id:'nav-route-outline',type:'line',source:'nav-route',paint:{'line-color':'#06101d','line-width':12,'line-opacity':.78}});map.addLayer({id:'nav-route',type:'line',source:'nav-route',paint:{'line-color':'#16b9ff','line-width':7}})}if(fit&&c.length){let b=c.reduce((x,p)=>x.extend(p),new maplibregl.LngLatBounds(c[0],c[0]));map.fitBounds(b,{padding:{top:150,bottom:210,left:45,right:45},maxZoom:16,duration:750})}}
+async function choose(x){try{sugg.classList.remove('show');let o=await getPos();dest={lng:x.position.lon,lat:x.position.lat};let name=x.poi?.name||x.address?.freeformAddress||search.value;search.value=name;rt=await route(o,dest);draw();dmark?.remove();dmark=new maplibregl.Marker({color:'#e53935'}).setLngLat([dest.lng,dest.lat]).addTo(map);let s=rt.summary;$('#previewName').textContent=name;$('#previewEta').textContent=eta(s.travelTimeInSeconds);$('#previewTime').textContent=ft(s.travelTimeInSeconds);$('#previewDist').textContent=fd(s.lengthInMeters);$('#routePreview').classList.add('show')}catch(e){document.querySelector('#info').innerHTML=`<b>Navigation error</b><span>${esc(e.message)}</span>`}}
+function progress(){let p=pts(),best=1e99,cum=0,bm=0;for(let i=0;i<p.length;i++){let a={lng:p[i][0],lat:p[i][1]},x=d(pos,a);if(x<best){best=x;bm=cum}if(i<p.length-1)cum+=d(a,{lng:p[i+1][0],lat:p[i+1][1]})}return{d:best,m:bm}}
+function guidance(){if(!rt||!pos)return;let pr=progress(),s=rt.summary,rm=Math.max(0,s.lengthInMeters-pr.m),rs=Math.max(0,s.travelTimeInSeconds*(rm/Math.max(1,s.lengthInMeters)));$('#eta').textContent=eta(rs);$('#timeLeft').textContent=ft(rs);$('#distLeft').textContent=fd(rm);let a=null,n=null;for(let x of rt.guidance?.instructions||[])if(x.routeOffsetInMeters>=pr.m-20){if(!a)a=x;else{n=x;break}}if(a){$('#turnIcon').textContent=icon(a.maneuver);$('#turnDist').textContent=fd(Math.max(0,a.routeOffsetInMeters-pr.m));$('#turnText').textContent=a.message||a.street||'Continue';$('#turnNext').textContent=n?.message||''}}
+async function reroute(){if(!dest||Date.now()-lastReroute<12000)return;let p=progress();if(p.d<65)return;lastReroute=Date.now();try{rt=await route(pos,dest);draw(false);guidance()}catch(e){}}
+function start(){if(!rt)return;active=true;$('#routePreview').classList.remove('show');$('#turnCard').classList.add('show');$('#navBottom').classList.add('show');document.body.classList.add('navigating');follow();guidance()}
+function end(){active=false;overview=false;rt=dest=null;$('#routePreview').classList.remove('show');$('#turnCard').classList.remove('show');$('#navBottom').classList.remove('show');$('#recenterNav').classList.remove('show');document.body.classList.remove('navigating');try{if(map.getLayer('nav-route'))map.removeLayer('nav-route');if(map.getLayer('nav-route-outline'))map.removeLayer('nav-route-outline');if(map.getSource('nav-route'))map.removeSource('nav-route')}catch(e){}dmark?.remove();dmark=null}
+function overviewRoute(){if(!rt)return;overview=true;let c=pts(),b=c.reduce((x,p)=>x.extend(p),new maplibregl.LngLatBounds(c[0],c[0]));map.fitBounds(b,{padding:{top:150,bottom:190,left:45,right:45},maxZoom:16,duration:700});$('#recenterNav').classList.add('show')}
+if(search){search.placeholder='Where to? Postcode, address or place';search.autocomplete='off';search.closest('.search')?.classList.add('nav-search-visible');search.addEventListener('input',()=>{clearTimeout(timer);timer=setTimeout(typeahead,170)});search.addEventListener('keydown',async e=>{if(e.key==='Enter'){e.preventDefault();e.stopImmediatePropagation();try{let a=await find(search.value,1);if(a[0])choose(a[0])}catch(x){}}},true)}
+$('#startNav').onclick=start;$('#endNav').onclick=end;$('#closePreview').onclick=end;$('#overviewNav').onclick=overviewRoute;$('#recenterNav').onclick=follow;
+document.addEventListener('click',e=>{if(!e.target.closest('.search')&&!e.target.closest('#navSuggest'))sugg.classList.remove('show')});
+document.addEventListener('click',async()=>{try{if(typeof DeviceOrientationEvent!=='undefined'&&typeof DeviceOrientationEvent.requestPermission==='function')await DeviceOrientationEvent.requestPermission()}catch(e){}},{once:true});
+function orient(e){let h=Number.isFinite(e.webkitCompassHeading)?e.webkitCompassHeading:Number.isFinite(e.alpha)?(360-e.alpha)%360:null;if(h!==null){head=h;paintPos()}}
+window.addEventListener('deviceorientationabsolute',orient,true);window.addEventListener('deviceorientation',orient,true);
 })();
