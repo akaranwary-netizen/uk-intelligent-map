@@ -1,21 +1,16 @@
-LIVE VOICE AI SCREEN
+MAP-VISIBLE VOICE AI
 
 Replace ONLY:
 - ai-client.js
 
-This removes all chat styling.
+What changes:
+- AI no longer takes over the screen.
+- The map stays fully visible.
+- A small floating voice card appears above the bottom controls.
+- It listens immediately when Ask AI is tapped.
+- The microphone is stopped before the AI speaks back (important on iPhone).
+- Gemini actions still control the map.
+- The answer is spoken aloud using iPhone/Safari speech synthesis.
+- No chat UI, no keyboard, no text box, no conversation history.
 
-New experience:
-- Ask AI opens a full-screen voice assistant
-- glowing active orb
-- live listening animation
-- live speech transcript only while listening
-- AI thinks
-- map action happens
-- AI speaks the answer aloud
-- no chat bubbles
-- no keyboard
-- no text box
-- no conversation history
-
-Then redeploy the Render Web Service.
+After replacing ai-client.js, redeploy your Render Web Service.

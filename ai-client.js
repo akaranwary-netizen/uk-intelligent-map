@@ -1,202 +1,191 @@
-/* UK Intelligent Map — Live Voice AI Screen
-   Full-screen voice assistant feel. No chat, no message bubbles, no text input.
+/* UK Intelligent Map — Map-visible Voice AI
+   Keeps the map visible. Tap Ask AI -> listen immediately -> Gemini -> map action -> spoken reply.
+   No chat screen, no text input, no conversation history.
 */
 (()=>{
   const $=q=>document.querySelector(q);
-  let recognition=null,busy=false;
+  let recognition=null,busy=false,isOpen=false,lastTranscript='';
 
   injectCSS();
-  const ui=build();
+  const ui=buildUI();
 
   function injectCSS(){
-    if($('#uk-live-ai-css')) return;
+    if($('#uk-map-voice-css')) return;
     const s=document.createElement('style');
-    s.id='uk-live-ai-css';
+    s.id='uk-map-voice-css';
     s.textContent=`
-      #liveAIBackdrop{
-        position:absolute;inset:0;z-index:90;
-        background:
-          radial-gradient(circle at 50% 45%,rgba(216,255,47,.12),transparent 30%),
-          linear-gradient(180deg,rgba(2,7,8,.90),rgba(1,5,6,.97));
-        backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
-        display:none;
+      #mapVoiceAI{
+        position:absolute;z-index:75;left:50%;bottom:max(94px,calc(env(safe-area-inset-bottom) + 78px));
+        transform:translate(-50%,24px);width:min(92vw,430px);
+        opacity:0;pointer-events:none;transition:.2s ease;
       }
-      #liveAIBackdrop.show{display:block}
-      #liveAI{
-        position:absolute;inset:0;z-index:91;display:none;color:#fff;pointer-events:none;
+      #mapVoiceAI.show{opacity:1;transform:translate(-50%,0);pointer-events:auto}
+      .mv-card{
+        display:flex;align-items:center;gap:12px;padding:12px 13px;
+        border-radius:24px;border:1px solid rgba(216,255,47,.28);
+        background:rgba(6,12,13,.84);
+        backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);
+        box-shadow:0 18px 50px rgba(0,0,0,.45);
       }
-      #liveAI.show{display:block}
-      .lai-top{
-        position:absolute;top:max(18px,env(safe-area-inset-top));left:18px;right:18px;
-        display:flex;align-items:center;justify-content:space-between;pointer-events:auto;
+      .mv-orb{
+        width:58px;height:58px;flex:0 0 58px;border-radius:50%;border:1px solid rgba(216,255,47,.55);
+        background:radial-gradient(circle at 35% 28%,#efffa0 0%,#d8ff2f 30%,#7fa90d 62%,#142108 100%);
+        display:grid;place-items:center;box-shadow:0 0 24px rgba(216,255,47,.25);
       }
-      .lai-brand{display:flex;align-items:center;gap:10px}
-      .lai-dot{width:10px;height:10px;border-radius:50%;background:#d8ff2f;box-shadow:0 0 16px #d8ff2f}
-      .lai-brand b{font-size:15px}.lai-brand small{display:block;color:#8f9a96;font-size:9px;margin-top:1px}
-      .lai-close{
-        width:42px;height:42px;border-radius:50%;border:1px solid rgba(255,255,255,.12);
-        background:rgba(20,27,27,.88);color:#fff;font-size:21px
+      .mv-orb svg{width:25px;height:25px;fill:#091009}
+      .mv-orb.listening{animation:mvPulse 1s infinite;box-shadow:0 0 42px rgba(216,255,47,.62)}
+      .mv-orb.thinking{animation:mvSpin 1.1s linear infinite}
+      .mv-orb.speaking{box-shadow:0 0 42px rgba(87,205,255,.58)}
+      @keyframes mvPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.09)}}
+      @keyframes mvSpin{to{transform:rotate(360deg)}}
+      .mv-copy{flex:1;min-width:0}
+      .mv-status{font-weight:900;font-size:14px;color:#fff}
+      .mv-text{
+        margin-top:3px;color:#aeb8b4;font-size:11px;line-height:1.3;
+        white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
       }
-      .lai-center{
-        position:absolute;left:50%;top:49%;transform:translate(-50%,-50%);
-        width:min(92vw,500px);text-align:center;pointer-events:auto;
+      .mv-bars{display:flex;align-items:center;gap:3px;height:18px;margin-top:5px}
+      .mv-bars i{display:block;width:3px;height:5px;border-radius:3px;background:#d8ff2f66}
+      .mv-listening .mv-bars i{animation:mvBar .8s infinite ease-in-out}
+      .mv-listening .mv-bars i:nth-child(2){animation-delay:.1s}
+      .mv-listening .mv-bars i:nth-child(3){animation-delay:.2s}
+      .mv-listening .mv-bars i:nth-child(4){animation-delay:.3s}
+      .mv-listening .mv-bars i:nth-child(5){animation-delay:.4s}
+      @keyframes mvBar{0%,100%{height:5px;opacity:.35}50%{height:17px;opacity:1}}
+      .mv-close{
+        width:40px;height:40px;flex:0 0 40px;border-radius:50%;
+        border:1px solid rgba(255,255,255,.12);background:#161d1e;color:#fff;font-size:19px
       }
-      .lai-status{
-        min-height:28px;font-size:15px;font-weight:800;letter-spacing:.2px;margin-bottom:22px;
+      .mv-retry{
+        position:absolute;left:50%;transform:translateX(-50%);top:-42px;
+        height:34px;padding:0 13px;border-radius:14px;border:1px solid rgba(255,255,255,.12);
+        background:rgba(13,19,20,.86);color:#fff;font-size:10px;font-weight:850;display:none
       }
-      .lai-orb-wrap{
-        position:relative;width:250px;height:250px;margin:0 auto;
-        display:grid;place-items:center;
-      }
-      .lai-ring,.lai-ring2,.lai-ring3{
-        position:absolute;border-radius:50%;border:1px solid rgba(216,255,47,.22);
-        inset:0;transition:.2s;
-      }
-      .lai-ring2{inset:18px;border-color:rgba(216,255,47,.18)}
-      .lai-ring3{inset:38px;border-color:rgba(216,255,47,.12)}
-      .lai-orb{
-        width:142px;height:142px;border-radius:50%;border:1px solid rgba(216,255,47,.55);
-        background:
-          radial-gradient(circle at 38% 30%,#f2ffad 0%,#dcff38 27%,#91b814 58%,#1a260b 100%);
-        box-shadow:0 0 55px rgba(216,255,47,.30),0 20px 70px rgba(0,0,0,.65);
-        display:grid;place-items:center;transition:.2s;
-      }
-      .lai-orb svg{width:46px;height:46px;fill:#081008}
-      .lai-listening .lai-ring{animation:laiPulse 1.4s infinite}
-      .lai-listening .lai-ring2{animation:laiPulse 1.4s .18s infinite}
-      .lai-listening .lai-ring3{animation:laiPulse 1.4s .36s infinite}
-      .lai-listening .lai-orb{transform:scale(1.05);box-shadow:0 0 90px rgba(216,255,47,.65),0 20px 70px rgba(0,0,0,.7)}
-      .lai-thinking .lai-orb{animation:laiRotate 1.5s linear infinite}
-      .lai-speaking .lai-orb{box-shadow:0 0 90px rgba(102,211,255,.55),0 20px 70px rgba(0,0,0,.7)}
-      .lai-speaking .lai-ring{border-color:rgba(102,211,255,.26);animation:laiPulse 1s infinite}
-      @keyframes laiPulse{0%{transform:scale(.92);opacity:.3}50%{opacity:1}100%{transform:scale(1.08);opacity:.15}}
-      @keyframes laiRotate{to{transform:rotate(360deg)}}
-      .lai-wave{
-        height:44px;margin:24px auto 4px;width:210px;display:flex;align-items:center;justify-content:center;gap:5px;
-      }
-      .lai-wave i{
-        width:4px;height:10px;border-radius:4px;background:#d8ff2f66;display:block;transition:.15s;
-      }
-      .lai-listening .lai-wave i{animation:laiWave .9s infinite ease-in-out}
-      .lai-listening .lai-wave i:nth-child(2){animation-delay:.1s}.lai-listening .lai-wave i:nth-child(3){animation-delay:.2s}.lai-listening .lai-wave i:nth-child(4){animation-delay:.3s}.lai-listening .lai-wave i:nth-child(5){animation-delay:.4s}.lai-listening .lai-wave i:nth-child(6){animation-delay:.5s}.lai-listening .lai-wave i:nth-child(7){animation-delay:.6s}
-      @keyframes laiWave{0%,100%{height:8px;opacity:.35}50%{height:38px;opacity:1}}
-      .lai-transcript{
-        min-height:44px;margin:6px auto 0;max-width:360px;color:#dce4e0;font-size:17px;line-height:1.35;
-      }
-      .lai-sub{margin-top:8px;color:#7f8a86;font-size:10px}
-      .lai-bottom{
-        position:absolute;left:0;right:0;bottom:max(24px,env(safe-area-inset-bottom));
-        display:flex;justify-content:center;gap:14px;pointer-events:auto;
-      }
-      .lai-btn{
-        height:50px;min-width:118px;padding:0 18px;border-radius:18px;
-        border:1px solid rgba(255,255,255,.12);background:#141b1c;color:#fff;font-weight:900;
-      }
-      .lai-btn.primary{background:#d8ff2f;color:#081008;border-color:#d8ff2f}
+      #mapVoiceAI.idle .mv-retry{display:block}
     `;
     document.head.appendChild(s);
   }
 
-  function build(){
-    const back=document.createElement('div');back.id='liveAIBackdrop';
-    const wrap=document.createElement('div');wrap.id='liveAI';
-    wrap.innerHTML=`
-      <div class="lai-top">
-        <div class="lai-brand"><span class="lai-dot"></span><div><b>UK Map AI</b><small>Live voice assistant</small></div></div>
-        <button class="lai-close" type="button">×</button>
-      </div>
-      <div class="lai-center">
-        <div class="lai-status" id="laiStatus">Ready</div>
-        <div class="lai-orb-wrap" id="laiOrbWrap">
-          <div class="lai-ring"></div><div class="lai-ring2"></div><div class="lai-ring3"></div>
-          <div class="lai-orb">
-            <svg viewBox="0 0 24 24"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 1 0-6 0v6a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21H8v2h8v-2h-3v-3.08A7 7 0 0 0 19 11h-2Z"/></svg>
-          </div>
+  function buildUI(){
+    const w=document.createElement('div');
+    w.id='mapVoiceAI';
+    w.innerHTML=`
+      <button class="mv-retry" type="button">Talk again</button>
+      <div class="mv-card">
+        <div class="mv-orb" id="mvOrb">
+          <svg viewBox="0 0 24 24"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 1 0-6 0v6a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21H8v2h8v-2h-3v-3.08A7 7 0 0 0 19 11h-2Z"/></svg>
         </div>
-        <div class="lai-wave">${'<i></i>'.repeat(7)}</div>
-        <div class="lai-transcript" id="laiTranscript">Tap Start and speak</div>
-        <div class="lai-sub">Your request controls the map directly</div>
-      </div>
-      <div class="lai-bottom">
-        <button class="lai-btn primary" id="laiStart" type="button">Start</button>
-        <button class="lai-btn" id="laiStop" type="button">Stop</button>
+        <div class="mv-copy">
+          <div class="mv-status" id="mvStatus">Listening…</div>
+          <div class="mv-text" id="mvText">Speak naturally</div>
+          <div class="mv-bars">${'<i></i>'.repeat(5)}</div>
+        </div>
+        <button class="mv-close" type="button">×</button>
       </div>`;
-    $('#app').append(back,wrap);
-    wrap.querySelector('.lai-close').onclick=close;
-    wrap.querySelector('#laiStart').onclick=startListening;
-    wrap.querySelector('#laiStop').onclick=stopAll;
-    back.onclick=close;
+    $('#app').appendChild(w);
+    w.querySelector('.mv-close').onclick=close;
+    w.querySelector('.mv-retry').onclick=startListening;
+    w.querySelector('#mvOrb').onclick=startListening;
     return {
-      back,wrap,status:wrap.querySelector('#laiStatus'),
-      transcript:wrap.querySelector('#laiTranscript'),
-      orbWrap:wrap.querySelector('#laiOrbWrap')
+      wrap:w,
+      orb:w.querySelector('#mvOrb'),
+      status:w.querySelector('#mvStatus'),
+      text:w.querySelector('#mvText'),
+      card:w.querySelector('.mv-card')
     };
   }
 
-  function setMode(mode,status,transcript){
-    ui.orbWrap.classList.remove('lai-listening','lai-thinking','lai-speaking');
-    if(mode)ui.orbWrap.classList.add(mode);
+  function setState(mode,status,text){
+    ui.wrap.classList.remove('mv-listening','idle');
+    ui.orb.classList.remove('listening','thinking','speaking');
+    if(mode==='listening'){ui.wrap.classList.add('mv-listening');ui.orb.classList.add('listening')}
+    if(mode==='thinking')ui.orb.classList.add('thinking');
+    if(mode==='speaking')ui.orb.classList.add('speaking');
+    if(mode==='idle')ui.wrap.classList.add('idle');
     ui.status.textContent=status||'';
-    if(transcript!==undefined)ui.transcript.textContent=transcript;
+    ui.text.textContent=text||'';
+  }
+
+  function unlockSpeech(){
+    if(!('speechSynthesis' in window)) return;
+    try{
+      speechSynthesis.cancel();
+      const u=new SpeechSynthesisUtterance(' ');
+      u.volume=0;
+      speechSynthesis.speak(u);
+    }catch(_){}
   }
 
   function open(){
-    ui.back.classList.add('show');ui.wrap.classList.add('show');
-    setMode('','Ready','Tap Start and speak');
+    isOpen=true;
+    ui.wrap.classList.add('show');
+    unlockSpeech();
+    setTimeout(startListening,180);
   }
+
   function close(){
-    stopAll();
-    ui.back.classList.remove('show');ui.wrap.classList.remove('show');
-  }
-  function stopAll(){
+    isOpen=false;
     try{recognition?.abort()}catch(_){}
-    if('speechSynthesis' in window)speechSynthesis.cancel();
+    if('speechSynthesis' in window) speechSynthesis.cancel();
+    ui.wrap.classList.remove('show');
     busy=false;
-    setMode('','Ready','Tap Start and speak');
   }
 
   async function startListening(){
     if(busy)return;
+    if(!isOpen){isOpen=true;ui.wrap.classList.add('show')}
     if('speechSynthesis' in window)speechSynthesis.cancel();
+
     try{
       if(navigator.mediaDevices?.getUserMedia){
         const stream=await navigator.mediaDevices.getUserMedia({audio:true});
         stream.getTracks().forEach(t=>t.stop());
       }
     }catch(_){
-      setMode('','Microphone blocked','Allow microphone access for this website');
+      setState('idle','Microphone blocked','Allow microphone access for this website');
       return;
     }
 
     const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
     if(!SR){
-      setMode('','Voice unavailable','This browser does not support speech recognition');
+      setState('idle','Voice unavailable','Speech recognition is not supported here');
       return;
     }
 
     try{recognition?.abort()}catch(_){}
     recognition=new SR();
     recognition.lang='en-GB';
-    recognition.interimResults=true;
     recognition.continuous=false;
+    recognition.interimResults=true;
     recognition.maxAlternatives=1;
 
-    recognition.onstart=()=>setMode('lai-listening','Listening…','Speak now');
+    let sent=false;
+    recognition.onstart=()=>setState('listening','Listening…','Speak naturally');
     recognition.onresult=e=>{
       let finalText='',interim='';
       for(let i=e.resultIndex;i<e.results.length;i++){
         const t=e.results[i][0].transcript;
-        if(e.results[i].isFinal)finalText+=t; else interim+=t;
+        if(e.results[i].isFinal)finalText+=t;else interim+=t;
       }
-      ui.transcript.textContent=finalText||interim||'Listening…';
-      if(finalText.trim()) askAI(finalText.trim());
+      const shown=(finalText||interim||'Speak naturally').trim();
+      ui.text.textContent=shown;
+      if(finalText.trim()&&!sent){
+        sent=true;
+        lastTranscript=finalText.trim();
+        // Stop microphone before trying to speak back on iPhone.
+        try{recognition.stop()}catch(_){}
+        askAI(lastTranscript);
+      }
     };
     recognition.onerror=e=>{
-      const m=e.error==='no-speech'?'I did not hear anything':e.error==='not-allowed'?'Microphone permission blocked':'Please try again';
-      setMode('',m,'Tap Start and speak');
+      if(busy)return;
+      const message=e.error==='no-speech'?'I did not hear anything':
+                    e.error==='not-allowed'?'Microphone permission blocked':
+                    'Please try again';
+      setState('idle',message,'Tap the orb or Talk again');
     };
     recognition.onend=()=>{
-      if(!busy && ui.orbWrap.classList.contains('lai-listening'))setMode('','Ready','Tap Start and speak');
+      if(!busy && !sent && isOpen)setState('idle','Ready','Tap the orb or Talk again');
     };
     recognition.start();
   }
@@ -213,7 +202,7 @@
 
   async function askAI(message){
     busy=true;
-    setMode('lai-thinking','Thinking…',message);
+    setState('thinking','Thinking…',message);
     try{
       const r=await fetch(new URL('/ai',location.origin),{
         method:'POST',
@@ -222,27 +211,60 @@
       });
       const d=await r.json().catch(()=>({}));
       if(!r.ok)throw new Error(d.error||`AI error ${r.status}`);
-      for(const a of d.actions||[]) await action(a);
-      await speak(d.reply||'Done.');
+      for(const a of d.actions||[])await action(a);
+      await speakReply(d.reply||'Done.');
     }catch(e){
-      await speak(e?.message||'The AI service is unavailable.');
-    }finally{busy=false}
+      await speakReply(e?.message||'The AI service is unavailable right now.');
+    }finally{
+      busy=false;
+    }
   }
 
-  function speak(text){
+  function speakReply(text){
     return new Promise(resolve=>{
-      if(!('speechSynthesis' in window)){setMode('','Ready','Tap Start and speak');resolve();return}
-      speechSynthesis.cancel();
-      const u=new SpeechSynthesisUtterance(String(text));
-      u.lang='en-GB';u.rate=1.02;u.pitch=1;
-      const voices=speechSynthesis.getVoices();
-      const v=voices.find(v=>v.lang==='en-GB'&&/Daniel|Serena|Siri|Google|English/i.test(v.name))||
-              voices.find(v=>v.lang==='en-GB')||voices.find(v=>/^en/.test(v.lang));
-      if(v)u.voice=v;
-      u.onstart=()=>setMode('lai-speaking','Speaking…',text);
-      u.onend=()=>{setMode('','Ready','Tap Start and speak');resolve()};
-      u.onerror=()=>{setMode('','Ready','Tap Start and speak');resolve()};
-      speechSynthesis.speak(u);
+      const answer=String(text||'').trim();
+      if(!answer){setState('idle','Ready','Tap the orb to speak');resolve();return}
+      if(!('speechSynthesis' in window)){
+        setState('idle','Ready',answer);
+        resolve();return;
+      }
+
+      try{
+        speechSynthesis.cancel();
+        const u=new SpeechSynthesisUtterance(answer);
+        u.lang='en-GB';
+        u.rate=1.0;
+        u.pitch=1.0;
+        u.volume=1.0;
+
+        const voices=speechSynthesis.getVoices();
+        const preferred=
+          voices.find(v=>v.lang==='en-GB'&&/Daniel|Serena|Siri|Google|English/i.test(v.name))||
+          voices.find(v=>v.lang==='en-GB')||
+          voices.find(v=>/^en/.test(v.lang));
+        if(preferred)u.voice=preferred;
+
+        u.onstart=()=>setState('speaking','Speaking…',answer);
+        u.onend=()=>{
+          if(isOpen)setState('idle','Ready','Tap the orb to speak again');
+          resolve();
+        };
+        u.onerror=()=>{
+          if(isOpen)setState('idle','Ready',answer);
+          resolve();
+        };
+
+        // iOS Safari can occasionally pause speech synthesis after async work.
+        speechSynthesis.speak(u);
+        setTimeout(()=>{
+          try{
+            if(speechSynthesis.paused)speechSynthesis.resume();
+          }catch(_){}
+        },250);
+      }catch(_){
+        setState('idle','Ready',answer);
+        resolve();
+      }
     });
   }
 
@@ -256,7 +278,10 @@
       map.flyTo({center:[h.position.lon,h.position.lat],zoom:13.5,duration:1000});
       if(navigate){
         const input=$('#search');
-        if(input){input.value=q;input.focus();input.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',code:'Enter',bubbles:true,cancelable:true}));}
+        if(input){
+          input.value=q;input.focus();
+          input.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',code:'Enter',bubbles:true,cancelable:true}));
+        }
       }
     }catch(_){}
   }
@@ -278,14 +303,14 @@
     else if(a.type==='navigate')await searchPlace(a.destination,true);
   }
 
-  const top=$('#askTop'),bottom=$('#mic');
-  if(top)top.onclick=e=>{e.preventDefault();open()};
-  if(bottom)bottom.onclick=e=>{e.preventDefault();open()};
+  const ask=$('#askTop'),mic=$('#mic');
+  if(ask)ask.onclick=e=>{e.preventDefault();open()};
+  if(mic)mic.onclick=e=>{e.preventDefault();open()};
 
   if('speechSynthesis' in window){
     speechSynthesis.getVoices();
     speechSynthesis.onvoiceschanged=()=>speechSynthesis.getVoices();
   }
 
-  window.UKMapAI={open,startListening,stop:stopAll};
+  window.UKMapAI={open,startListening,close};
 })();
